@@ -185,6 +185,16 @@ export class DatabaseManager {
   }
 
   /**
+   * Get the connection pool (for advanced use cases)
+   */
+  getPool(): Pool {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+    return this.pool;
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {

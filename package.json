@@ -11,7 +11,11 @@
     "start:sse": "TRANSPORT=sse node dist/server.js",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "yago:download": "bash scripts/download-yago.sh",
+    "yago:import": "npm run build && node dist/scripts/import-yago.js",
+    "yago:import:dry-run": "npm run build && node dist/scripts/import-yago.js --dry-run",
+    "yago:setup": "bash scripts/create-sample-yago.sh && npm run yago:import"
   },
   "keywords": [
     "mcp",

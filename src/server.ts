@@ -23,6 +23,7 @@ import {
 } from './config/language-selector.js';
 import { getPythonBridge } from './services/python-bridge.js';
 import { LambdaAbstractor } from './services/typescript/lambda-abstractor.js';
+import { handlePebbleSearch, formatPebbleSearchResult, pebbleSearchSchema } from './tools/core/pebble-search.js';
 
 // Load environment variables
 dotenv.config();
@@ -183,6 +184,72 @@ const TOOLS: Tool[] = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'pebble_search',
+    description:
+      'Pebble Search: Drop a "pebble" on a starting node and explore the graph in ripples, finding the most densely connected nodes at a specified hop distance, then enriching them with multi-modal web searches. Perfect for exploratory graph traversal and knowledge discovery.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        start: {
+          type: 'string',
+          description: 'Starting node URI or label (e.g., "Alan_Turing" or "yago:Alan_Turing")',
+        },
+        hops: {
+          type: 'number',
+          description: 'Number of hops away from starting node (1-10)',
+          minimum: 1,
+          maximum: 10,
+        },
+        top_n: {
+          type: 'number',
+          description: 'Return top N densest nodes',
+          default: 10,
+          minimum: 1,
+          maximum: 50,
+        },
+        contexts: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Filter by context (e.g., ["yago-facts", "user"])',
+        },
+        density_metric: {
+          type: 'string',
+          enum: ['degree', 'weighted'],
+          description: 'Density calculation method',
+          default: 'degree',
+        },
+        enable_web_search: {
+          type: 'boolean',
+          description: 'Enable web enrichment of dense nodes',
+          default: true,
+        },
+        web_search_limit: {
+          type: 'number',
+          description: 'Number of web searches per dense node',
+          default: 3,
+          minimum: 1,
+          maximum: 5,
+        },
+        include_neighbors: {
+          type: 'boolean',
+          description: 'Include neighbor information',
+          default: true,
+        },
+        include_path: {
+          type: 'boolean',
+          description: 'Include path from start to each node',
+          default: true,
+        },
+        auto_import_triples: {
+          type: 'boolean',
+          description: 'Automatically import discovered triples',
+          default: false,
+        },
+      },
+      required: ['start', 'hops'],
     },
   },
 
@@ -350,6 +417,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'system_status':
         return await handleSystemStatus(args);
+
+      case 'pebble_search':
+        return await handlePebbleSearchTool(args);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -811,6 +881,30 @@ async function handleSystemStatus(args: any) {
       {
         type: 'text',
         text: status,
+      },
+    ],
+  };
+}
+
+async function handlePebbleSearchTool(args: any) {
+  if (!db) {
+    throw new Error('Database not initialized');
+  }
+
+  // Validate input using zod schema
+  const validated = pebbleSearchSchema.parse(args);
+
+  // Execute pebble search
+  const result = await handlePebbleSearch(validated, db.getPool());
+
+  // Format result for display
+  const formattedOutput = formatPebbleSearchResult(result);
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: formattedOutput,
       },
     ],
   };

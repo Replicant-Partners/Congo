@@ -1,0 +1,28 @@
+@prefix schema: <http://schema.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix yago: <http://yago-knowledge.org/resource/> .
+
+# Sample entities and facts
+yago:Alan_Turing rdf:type yago:Scientist .
+yago:Alan_Turing schema:name "Alan Turing" .
+yago:Alan_Turing schema:birthDate "1912-06-23" .
+yago:Alan_Turing schema:nationality "British" .
+yago:Alan_Turing schema:description "Computer scientist and mathematician" .
+
+yago:Ada_Lovelace rdf:type yago:Scientist .
+yago:Ada_Lovelace schema:name "Ada Lovelace" .
+yago:Ada_Lovelace schema:birthDate "1815-12-10" .
+yago:Ada_Lovelace schema:nationality "British" .
+yago:Ada_Lovelace schema:description "Mathematician and first computer programmer" .
+
+yago:Consciousness rdf:type yago:Concept .
+yago:Consciousness schema:name "Consciousness" .
+yago:Consciousness schema:description "The state of being aware of internal and external stimuli" .
+
+yago:Artificial_Intelligence rdf:type yago:Concept .
+yago:Artificial_Intelligence schema:name "Artificial Intelligence" .
+yago:Artificial_Intelligence schema:description "Intelligence demonstrated by machines" .
+
+yago:University_of_Cambridge rdf:type yago:University .
+yago:University_of_Cambridge schema:name "University of Cambridge" .
+yago:University_of_Cambridge schema:description "Collegiate research university in Cambridge, England" .

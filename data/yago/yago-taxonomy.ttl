@@ -1,0 +1,15 @@
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix yago: <http://yago-knowledge.org/resource/> .
+
+# Sample taxonomy - class hierarchy
+schema:Person rdfs:subClassOf schema:Thing .
+schema:Organization rdfs:subClassOf schema:Thing .
+schema:Place rdfs:subClassOf schema:Thing .
+schema:Concept rdfs:subClassOf schema:Thing .
+
+# More specific classes
+yago:Scientist rdfs:subClassOf schema:Person .
+yago:Philosopher rdfs:subClassOf schema:Person .
+yago:University rdfs:subClassOf schema:Organization .
+yago:City rdfs:subClassOf schema:Place .
