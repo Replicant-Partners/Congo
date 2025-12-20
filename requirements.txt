@@ -1,0 +1,30 @@
+# Core dependencies
+python-dotenv==1.0.1
+
+# NLP and language processing
+spacy==3.8.3
+# Run: python -m spacy download en_core_web_sm
+
+# RDF and Semantic Web
+rdflib==7.1.1
+owlready2==0.48
+
+# Database
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+
+# LLM Integration
+anthropic==0.42.0
+openai==1.59.6
+
+# Vector embeddings
+sentence-transformers==3.3.1
+
+# Graph operations
+networkx==3.4.2
+
+# Logic programming (optional)
+pyDatalog==0.17.1
+
+# Utilities
+pydantic==2.10.4
