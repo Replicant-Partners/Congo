@@ -575,26 +575,5 @@ export class LambdaAbstractor {
   }
 }
 
-// CLI interface
-if (require.main === module) {
-  const input = process.argv[2];
-
-  if (!input) {
-    console.error("Usage: node lambda-abstractor.js <input>");
-    console.error('   OR: node lambda-abstractor.js --json \'{"input": "...", "inputType": "..."}\'');
-    process.exit(1);
-  }
-
-  let inputData: { input: string; inputType?: string };
-
-  if (input === "--json") {
-    inputData = JSON.parse(process.argv[3]);
-  } else {
-    inputData = { input: process.argv.slice(2).join(" ") };
-  }
-
-  const abstractor = new LambdaAbstractor();
-  const result = abstractor.abstract(inputData.input, inputData.inputType);
-
-  console.log(JSON.stringify(result, null, 2));
-}
+// CLI interface removed - this is used as an ES module by the server
+// To use as CLI, create a separate wrapper file
