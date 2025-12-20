@@ -9,15 +9,15 @@
 export type ProgrammingLanguage = 'TypeScript' | 'Python' | 'Prolog' | 'Rust' | 'Go';
 
 export interface ComponentRequirements {
-  needsLogic: boolean;          // Logic programming, theorem proving
-  needsGraphOps: boolean;       // RDF, SPARQL, graph algorithms
-  needsTypeSystem: boolean;     // Strong static typing
-  needsPerformance: boolean;    // High-performance computing
-  needsMLLibraries: boolean;    // Machine learning, NLP
-  needsSemanticWeb: boolean;    // RDF, OWL, ontologies
-  needsConcurrency: boolean;    // Async/parallel processing
-  needsWebIntegration: boolean; // HTTP, REST, SSE
-  needsDataScience: boolean;    // Numerical computing, data analysis
+  needsLogic: boolean | number;          // Logic programming, theorem proving
+  needsGraphOps: boolean | number;       // RDF, SPARQL, graph algorithms
+  needsTypeSystem: boolean | number;     // Strong static typing
+  needsPerformance: boolean | number;    // High-performance computing
+  needsMLLibraries: boolean | number;    // Machine learning, NLP
+  needsSemanticWeb: boolean | number;    // RDF, OWL, ontologies
+  needsConcurrency: boolean | number;    // Async/parallel processing
+  needsWebIntegration: boolean | number; // HTTP, REST, SSE
+  needsDataScience: boolean | number;    // Numerical computing, data analysis
 }
 
 export interface LanguageScoreReasoning {
@@ -247,9 +247,9 @@ export function scoreLanguages(
     let requirementScore = 0;
     let totalWeight = 0;
 
-    for (const [req, value] of Object.entries(requirements) as [keyof ComponentRequirements, boolean][]) {
+    for (const [req, value] of Object.entries(requirements) as [keyof ComponentRequirements, boolean | number][]) {
       if (value) {
-        const weight = defaultWeights[req];
+        const weight = defaultWeights[req] as number;
         const capability = capabilities[req];
         requirementScore += capability * weight;
         totalWeight += 10 * weight; // Max score is 10

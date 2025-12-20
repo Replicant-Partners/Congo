@@ -17,11 +17,12 @@ import * as dotenv from 'dotenv';
 import { DatabaseManager, createDatabaseManager } from './config/database.js';
 import {
   scoreLanguages,
-  recommendLanguage,
   formatScores,
   TASK_PROFILES,
   ComponentRequirements,
 } from './config/language-selector.js';
+import { getPythonBridge } from './services/python-bridge.js';
+import { LambdaAbstractor } from './services/typescript/lambda-abstractor.js';
 
 // Load environment variables
 dotenv.config();
@@ -372,60 +373,266 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
  */
 
 async function handleTripleDecomposition(args: any) {
-  // TODO: Call Python service
+  const python = getPythonBridge();
+  const result = await python.tripleDecomposition({
+    concept: args.concept,
+    context: args.context,
+  });
+
+  if (!result.success) {
+    throw new Error('Triple decomposition failed');
+  }
+
+  // Format output
+  let output = `🌊 **Triple Decomposition Results**\n\n`;
+  output += `**Input:** ${result.input}\n`;
+  if (result.context) {
+    output += `**Context:** ${result.context}\n`;
+  }
+  output += `**Triples Found:** ${result.count}\n\n`;
+
+  result.triples.forEach((triple: any, idx: number) => {
+    output += `${idx + 1}. **${triple.subject}** → \`${triple.predicate}\` → **${triple.object}**\n`;
+    output += `   _Confidence: ${(triple.confidence * 100).toFixed(0)}%_\n\n`;
+  });
+
+  // Store in database if requested
+  if (args.store_in_db && db) {
+    try {
+      const count = await db.importTriples(result.triples.map((t: any) => ({
+        subject: t.subject,
+        predicate: t.predicate,
+        object: t.object,
+        context: args.context,
+      })));
+      output += `\n✅ Stored ${count} triples in knowledge graph`;
+    } catch (error) {
+      output += `\n⚠️  Warning: Could not store in database: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
   return {
     content: [
       {
         type: 'text',
-        text: `Triple decomposition: ${args.concept}\n\n(Implementation in progress - Python service will be called here)`,
+        text: output,
       },
     ],
   };
 }
 
 async function handleLambdaAbstraction(args: any) {
-  // TODO: Implement TypeScript service
+  const abstractor = new LambdaAbstractor();
+  const result = abstractor.abstract(args.input);
+
+  if (!result.success) {
+    throw new Error('Lambda abstraction failed');
+  }
+
+  // Format output
+  let output = `🌊 **Lambda Calculus Abstraction**\n\n`;
+  output += `**Input:** ${result.input}\n`;
+  output += `**Type:** ${result.inputType}\n\n`;
+
+  output += `**Lambda Notation:**\n\`\`\`\n${result.notation}\n\`\`\`\n\n`;
+
+  if (result.curried !== result.notation) {
+    output += `**Curried Form:**\n\`\`\`\n${result.curried}\n\`\`\`\n\n`;
+  }
+
+  if (result.betaReduced && args.simplify !== false) {
+    output += `**Beta Reduced:**\n\`\`\`\n${result.betaReduced}\n\`\`\`\n\n`;
+  }
+
+  if (result.typeSignature && args.include_types !== false) {
+    output += `**Type Signature:** \`${result.typeSignature}\`\n\n`;
+  }
+
+  output += `**Properties:**\n`;
+  output += `- Complexity: ${result.complexity}\n`;
+  output += `- Variables: ${result.variables.join(', ') || 'none'}\n`;
+  output += `- Free Variables: ${result.freeVariables.join(', ') || 'none'}\n`;
+
   return {
     content: [
       {
         type: 'text',
-        text: `Lambda abstraction: ${args.input}\n\n(Implementation in progress)`,
+        text: output,
       },
     ],
   };
 }
 
 async function handleProofSearch(args: any) {
-  // TODO: Call Python service
+  const python = getPythonBridge();
+  const result = await python.proofSearch({
+    goal: args.goal,
+    premises: args.premises,
+    method: args.method,
+    max_depth: args.max_depth,
+  });
+
+  if (!result.success) {
+    throw new Error('Proof search failed');
+  }
+
+  // Format output
+  let output = `🌊 **Proof Search Results**\n\n`;
+  output += `**Goal:** ${result.goal}\n`;
+  output += `**Strategy:** ${result.proof?.strategy || 'auto'}\n\n`;
+
+  if (result.proof?.success) {
+    output += `✅ **Proof Found!**\n\n`;
+    output += `**Proof Steps:**\n\n`;
+
+    result.proof.steps?.forEach((step: any, idx: number) => {
+      output += `${idx + 1}. **${step.conclusion}**\n`;
+      if (step.premises && step.premises.length > 0) {
+        output += `   From: ${step.premises.join(', ')}\n`;
+      }
+      output += `   Rule: \`${step.rule_name}\`\n\n`;
+    });
+
+    if (result.proof.proof_tree) {
+      output += `\n**Proof Tree (Curry-Howard):**\n\`\`\`\n${result.proof.proof_tree}\n\`\`\`\n`;
+    }
+  } else {
+    output += `❌ **No Proof Found**\n\n`;
+    output += `The goal could not be proven with the given premises and constraints.\n`;
+    if (result.proof?.attempted_steps) {
+      output += `\nAttempted ${result.proof.attempted_steps} proof steps.`;
+    }
+  }
+
   return {
     content: [
       {
         type: 'text',
-        text: `Proof search for: ${args.goal}\n\n(Implementation in progress)`,
+        text: output,
       },
     ],
   };
 }
 
 async function handleGraphQuery(args: any) {
-  // TODO: Call Python service
+  const python = getPythonBridge();
+
+  // Get triples from database if available
+  let triples: any[] = [];
+  if (db) {
+    try {
+      const dbResult = await db.query(
+        `SELECT subject, predicate, object, context
+         FROM triples
+         ${args.context ? 'WHERE context = $1' : ''}
+         LIMIT ${args.limit || 100}`,
+        args.context ? [args.context] : []
+      );
+      triples = dbResult.rows;
+    } catch (error) {
+      console.error('[GraphQuery] Database query failed:', error);
+    }
+  }
+
+  const result = await python.graphQuery({
+    query: args.query,
+    context: args.context,
+    triples,
+  });
+
+  if (!result.success) {
+    throw new Error('Graph query failed');
+  }
+
+  // Format output
+  let output = `🌊 **Knowledge Graph Query Results**\n\n`;
+  output += `**Query:** ${result.query}\n`;
+  output += `**Results Found:** ${result.count || 0}\n\n`;
+
+  if (result.matches && result.matches.length > 0) {
+    output += `**Matching Triples:**\n\n`;
+    result.matches.forEach((triple: any, idx: number) => {
+      output += `${idx + 1}. **${triple.subject}** → \`${triple.predicate}\` → **${triple.object}**\n`;
+      if (triple.context) {
+        output += `   Context: _${triple.context}_\n`;
+      }
+      output += `\n`;
+    });
+  } else {
+    output += `No matching triples found.\n`;
+  }
+
+  if (result.query_type) {
+    output += `\n_Query Type: ${result.query_type}_\n`;
+  }
+
   return {
     content: [
       {
         type: 'text',
-        text: `Graph query: ${args.query}\n\n(Implementation in progress)`,
+        text: output,
       },
     ],
   };
 }
 
 async function handleNeuroSymbolicQuery(args: any) {
-  // TODO: Implement full pipeline
+  const python = getPythonBridge();
+
+  // Note: Database context could be queried here if needed for the Python service
+  // For now, the Python service will handle its own knowledge retrieval
+
+  const result = await python.neuroSymbolicQuery({
+    query: args.query,
+    use_llm: args.use_llm,
+    llm_provider: args.llm_provider,
+    include_proof: args.include_proof,
+  });
+
+  if (!result.success) {
+    throw new Error('Neuro-symbolic query failed');
+  }
+
+  // Format output
+  let output = `🌊 **Neuro-Symbolic Reasoning Results**\n\n`;
+  output += `**Query:** ${result.query || args.query}\n\n`;
+
+  if (result.result) {
+    output += `**Answer:**\n${result.result.answer}\n\n`;
+
+    if (result.result.confidence) {
+      output += `**Confidence:** ${(result.result.confidence * 100).toFixed(0)}%\n\n`;
+    }
+
+    if (result.result.logical_form) {
+      output += `**Logical Form:**\n\`\`\`\n${result.result.logical_form}\n\`\`\`\n\n`;
+    }
+
+    if (result.result.graph_results && result.result.graph_results.length > 0) {
+      output += `**Knowledge Graph Evidence:**\n\n`;
+      result.result.graph_results.slice(0, 5).forEach((triple: any, idx: number) => {
+        output += `${idx + 1}. ${triple.subject} → \`${triple.predicate}\` → ${triple.object}\n`;
+      });
+      output += `\n`;
+    }
+
+    if (result.result.proof_trace && args.include_proof) {
+      output += `**Proof Trace:**\n\`\`\`\n${JSON.stringify(result.result.proof_trace, null, 2)}\n\`\`\`\n\n`;
+    }
+
+    if (result.result.reasoning_steps && result.result.reasoning_steps.length > 0) {
+      output += `**Reasoning Process:**\n`;
+      result.result.reasoning_steps.forEach((step: string, idx: number) => {
+        output += `${idx + 1}. ${step}\n`;
+      });
+    }
+  }
+
   return {
     content: [
       {
         type: 'text',
-        text: `Neuro-symbolic query: ${args.query}\n\n(Implementation in progress)`,
+        text: output,
       },
     ],
   };
@@ -630,21 +837,11 @@ async function main() {
   const transport = process.env.TRANSPORT;
 
   if (transport === 'sse') {
-    // SSE transport for remote access
-    console.error('🌐 Starting SSE server...');
-
-    const app = express();
-    const sseTransport = new SSEServerTransport('/mcp', server);
-
-    app.use('/mcp', sseTransport.requestHandler());
-
-    const port = parseInt(process.env.SSE_PORT || '3000');
-    const host = process.env.SSE_HOST || '0.0.0.0';
-
-    app.listen(port, host, () => {
-      console.error(`✅ SSE server listening on http://${host}:${port}/mcp`);
-      console.error('\nReady to receive MCP requests!');
-    });
+    // SSE transport temporarily disabled due to API changes
+    // TODO: Update to latest MCP SDK SSE transport API
+    console.error('⚠️  SSE transport is not currently supported');
+    console.error('Please use STDIO transport (default) instead');
+    process.exit(1);
   } else {
     // STDIO transport for local use (default)
     console.error('📡 Starting STDIO server...');

@@ -20,7 +20,8 @@ export type LambdaTerm =
 /**
  * Typed lambda term with explicit type annotations
  */
-export interface TypedLambdaTerm extends LambdaTerm {
+export interface TypedLambdaTerm {
+  type: "variable" | "abstraction" | "application" | "constant";
   inferredType?: string;
 }
 
@@ -407,7 +408,7 @@ export class LambdaAbstractor {
     if (term.type === "abstraction") {
       // Collect all consecutive abstractions
       const params: string[] = [];
-      let current = term;
+      let current: LambdaTerm = term;
 
       while (current.type === "abstraction") {
         params.push(current.param);
