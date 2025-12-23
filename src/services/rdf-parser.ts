@@ -9,6 +9,28 @@ export interface RDFTriple {
   object: string;
   datatype?: string;
   language?: string;
+  isLiteral: boolean;
+  isUri: boolean;
+  isBlankNode: boolean;
+}
+
+export interface ParseError {
+  line: number;
+  column: number;
+  message: string;
+  context: string;
+}
+
+export interface ParseResult {
+  triples: RDFTriple[];
+  prefixes: Map<string, string>;
+  errors: ParseError[];
+  statistics: {
+    totalTriples: number;
+    literals: number;
+    uris: number;
+    blankNodes: number;
+  };
 }
 
 export interface ParseOptions {

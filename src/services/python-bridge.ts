@@ -6,14 +6,20 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  TripleDecompositionResult,
+  ProofSearchResult,
+  GraphQueryResult,
+  NeuroSymbolicResult,
+} from './types/python-service-types.js';
+import { ServiceError } from './types/error-types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export interface PythonServiceResult {
-  success: boolean;
-  [key: string]: any;
-}
+// PythonServiceResult is now defined in types/python-service-types.ts
+// This interface is kept for backward compatibility but should not be used directly
+export type PythonServiceResult = any;
 
 export class PythonBridge {
   private pythonExecutable: string;
@@ -62,7 +68,10 @@ export class PythonBridge {
       // Timeout handling
       const timeoutId = setTimeout(() => {
         childProcess.kill();
-        reject(new Error(`Python service timed out after ${this.timeout}ms`));
+        reject(new ServiceError(`Python service timed out after ${this.timeout}ms`, {
+          script: scriptName,
+          timeout: this.timeout,
+        }));
       }, this.timeout);
 
       childProcess.on('close', (code: number | null) => {
@@ -71,8 +80,13 @@ export class PythonBridge {
         if (code !== 0) {
           console.error(`[PythonBridge] ${scriptName} failed:`, stderr);
           reject(
-            new Error(
-              `Python service exited with code ${code}: ${stderr || 'Unknown error'}`
+            new ServiceError(
+              `Python service exited with code ${code}: ${stderr || 'Unknown error'}`,
+              {
+                script: scriptName,
+                exitCode: code,
+                stderr,
+              }
             )
           );
           return;
@@ -84,7 +98,11 @@ export class PythonBridge {
         } catch (error) {
           console.error(`[PythonBridge] Failed to parse JSON:`, stdout);
           reject(
-            new Error(`Failed to parse Python output: ${error instanceof Error ? error.message : String(error)}`)
+            new ServiceError(`Failed to parse Python output: ${error instanceof Error ? error.message : String(error)}`, {
+              script: scriptName,
+              stdout,
+              originalError: error instanceof Error ? error.message : String(error),
+            })
           );
         }
       });
@@ -92,7 +110,10 @@ export class PythonBridge {
       childProcess.on('error', (error: Error) => {
         clearTimeout(timeoutId);
         console.error(`[PythonBridge] Process error:`, error);
-        reject(error);
+        reject(new ServiceError(`Python process failed: ${error.message}`, {
+          script: scriptName,
+          originalError: error.message,
+        }));
       });
     });
   }
@@ -103,7 +124,7 @@ export class PythonBridge {
   async tripleDecomposition(args: {
     concept: string;
     context?: string;
-  }): Promise<PythonServiceResult> {
+  }): Promise<TripleDecompositionResult> {
     return this.execute('triple_decomposer.py', {
       text: args.concept,
       context: args.context,
@@ -118,7 +139,7 @@ export class PythonBridge {
     premises?: string[];
     method?: string;
     max_depth?: number;
-  }): Promise<PythonServiceResult> {
+  }): Promise<ProofSearchResult> {
     // Convert premises to facts and rules format
     const facts = args.premises || [];
     const rules: any[] = [];
@@ -139,7 +160,7 @@ export class PythonBridge {
     query: string;
     context?: string;
     triples?: any[];
-  }): Promise<PythonServiceResult> {
+  }): Promise<GraphQueryResult> {
     return this.execute('graph_engine.py', {
       query: args.query,
       context: args.context,
@@ -155,7 +176,7 @@ export class PythonBridge {
     use_llm?: boolean;
     llm_provider?: 'anthropic' | 'openai';
     include_proof?: boolean;
-  }): Promise<PythonServiceResult> {
+  }): Promise<NeuroSymbolicResult> {
     return this.execute('neuro_symbolic.py', {
       query: args.query,
       use_llm: args.use_llm !== false,

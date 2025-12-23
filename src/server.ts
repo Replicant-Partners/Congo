@@ -22,6 +22,13 @@ import {
   ComponentRequirements,
 } from './config/language-selector.js';
 import { getPythonBridge } from './services/python-bridge.js';
+import {
+  TripleDecompositionResult,
+  ProofSearchResult,
+  GraphQueryResult,
+  NeuroSymbolicResult,
+} from './services/types/python-service-types.js';
+import { CongoError, ErrorCode } from './services/types/error-types.js';
 import { LambdaAbstractor } from './services/typescript/lambda-abstractor.js';
 import { handlePebbleSearch, formatPebbleSearchResult, pebbleSearchSchema } from './tools/core/pebble-search.js';
 
@@ -426,11 +433,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
   } catch (error) {
     console.error(`[Congo River] Error in ${name}:`, error);
+    
+    let errorMessage = 'An unexpected error occurred';
+    let errorCode = ErrorCode.SYSTEM_ERROR;
+    
+    if (error instanceof CongoError) {
+      errorMessage = error.message;
+      errorCode = error.code;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    } else {
+      errorMessage = String(error);
+    }
+    
+    // Log detailed error information
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[Congo River] Detailed error for ${name}:`, {
+        code: errorCode,
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+    }
+    
     return {
       content: [
         {
           type: 'text',
-          text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error [${errorCode}]: ${errorMessage}`,
         },
       ],
       isError: true,
@@ -447,10 +476,14 @@ async function handleTripleDecomposition(args: any) {
   const result = await python.tripleDecomposition({
     concept: args.concept,
     context: args.context,
-  });
+  }) as TripleDecompositionResult;
 
   if (!result.success) {
-    throw new Error('Triple decomposition failed');
+    throw new ToolError('Triple decomposition failed', {
+      tool: 'triple_decomposition',
+      input: args.concept,
+      context: args.context,
+    });
   }
 
   // Format output
@@ -540,10 +573,15 @@ async function handleProofSearch(args: any) {
     premises: args.premises,
     method: args.method,
     max_depth: args.max_depth,
-  });
+  }) as ProofSearchResult;
 
   if (!result.success) {
-    throw new Error('Proof search failed');
+    throw new ToolError('Proof search failed', {
+      tool: 'proof_search',
+      goal: args.goal,
+      premises: args.premises,
+      method: args.method,
+    });
   }
 
   // Format output
@@ -591,12 +629,14 @@ async function handleGraphQuery(args: any) {
   let triples: any[] = [];
   if (db) {
     try {
+      // Validate and sanitize limit parameter to prevent SQL injection
+      const limitValue = Math.min(Math.max(parseInt(args.limit) || 100, 1), 1000);
       const dbResult = await db.query(
         `SELECT subject, predicate, object, context
          FROM triples
          ${args.context ? 'WHERE context = $1' : ''}
-         LIMIT ${args.limit || 100}`,
-        args.context ? [args.context] : []
+         LIMIT $${args.context ? 2 : 1}`,
+        args.context ? [args.context, limitValue] : [limitValue]
       );
       triples = dbResult.rows;
     } catch (error) {
@@ -608,10 +648,14 @@ async function handleGraphQuery(args: any) {
     query: args.query,
     context: args.context,
     triples,
-  });
+  }) as GraphQueryResult;
 
   if (!result.success) {
-    throw new Error('Graph query failed');
+    throw new ToolError('Graph query failed', {
+      tool: 'graph_query',
+      query: args.query,
+      context: args.context,
+    });
   }
 
   // Format output
@@ -657,10 +701,15 @@ async function handleNeuroSymbolicQuery(args: any) {
     use_llm: args.use_llm,
     llm_provider: args.llm_provider,
     include_proof: args.include_proof,
-  });
+  }) as NeuroSymbolicResult;
 
   if (!result.success) {
-    throw new Error('Neuro-symbolic query failed');
+    throw new ToolError('Neuro-symbolic query failed', {
+      tool: 'neuro_symbolic_query',
+      query: args.query,
+      use_llm: args.use_llm,
+      llm_provider: args.llm_provider,
+    });
   }
 
   // Format output
@@ -739,7 +788,10 @@ async function handleRecommendLanguage(args: any) {
 
 async function handleConfigureDatabase(args: any) {
   if (!db) {
-    throw new Error('Database not initialized');
+    throw new DatabaseError('Database not initialized', {
+      tool: 'configure_database',
+      action: args.action,
+    });
   }
 
   let result: string;
@@ -797,7 +849,10 @@ async function handleConfigureDatabase(args: any) {
 
 async function handleExportKnowledge(args: any) {
   if (!db) {
-    throw new Error('Database not initialized');
+    throw new DatabaseError('Database not initialized', {
+      tool: 'export_knowledge',
+      format: args.format,
+    });
   }
 
   let result: string;
@@ -825,7 +880,10 @@ async function handleExportKnowledge(args: any) {
 
 async function handleImportKnowledge(args: any) {
   if (!db) {
-    throw new Error('Database not initialized');
+    throw new DatabaseError('Database not initialized', {
+      tool: 'import_knowledge',
+      tripleCount: args.triples?.length,
+    });
   }
 
   const count = await db.importTriples(args.triples);
@@ -842,7 +900,10 @@ async function handleImportKnowledge(args: any) {
 
 async function handleSystemStatus(args: any) {
   if (!db) {
-    throw new Error('Database not initialized');
+    throw new DatabaseError('Database not initialized', {
+      tool: 'system_status',
+      detailed: args.detailed,
+    });
   }
 
   const healthy = await db.healthCheck();
@@ -888,7 +949,11 @@ async function handleSystemStatus(args: any) {
 
 async function handlePebbleSearchTool(args: any) {
   if (!db) {
-    throw new Error('Database not initialized');
+    throw new DatabaseError('Database not initialized', {
+      tool: 'pebble_search',
+      start: args.start,
+      hops: args.hops,
+    });
   }
 
   // Validate input using zod schema

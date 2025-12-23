@@ -56,9 +56,7 @@ export class DatabaseManager {
           max: this.config.maxConnections,
           idleTimeoutMillis: this.config.idleTimeoutMs,
           connectionTimeoutMillis: this.config.connectionTimeoutMs,
-          ssl: {
-            rejectUnauthorized: false, // For development; use proper certs in production
-          },
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : { rejectUnauthorized: false },
         });
       } else {
         // Local PostgreSQL
